@@ -1,0 +1,19 @@
+{
+  "name": "futbol-ar-bot",
+  "version": "1.0.0",
+  "description": "Bot de Discord con la actualidad del futbol argentino",
+  "main": "index.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "deploy-commands": "node deploy-commands.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.4.5",
+    "node-cron": "^3.0.3"
+  }
+}
