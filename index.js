@@ -1,10 +1,16 @@
-require('dotenv').config();
-const fs = require('fs');
-const path = require('path');
-const http = require('http');
-const cron = require('node-cron');
-const { Client, GatewayIntentBits, Collection, EmbedBuilder, REST, Routes } = require('discord.js');
-const api = require('./api');
+          const hoy = new Date().toISOString().slice(0, 10);
+          const proximos = await api.getProximosPartidos();
+          const deHoy = proximos.filter((p) => p.dateEvent === hoy);
+          const canal = await client.channels.fetch(process.env.CHANNEL_ID);
+
+          if (!deHoy.length) {
+            await canal.send('Hoy no hay partidos programados en el torneo.');
+            return;
+          }
+
+          const lineas = deHoy.map((p) => {
+            return `${p.strTime || ''} — **${p.strHomeTeam}** vs **${p.strAwayTeam}**`;
+          });
 
 // Servidor web minimo. Render necesita que el proyecto responda en un puerto para
 // considerarlo "activo", y este mismo endpoint es al que le va a hacer ping UptimeRobot
