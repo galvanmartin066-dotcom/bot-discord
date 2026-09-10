@@ -1,99 +1,72 @@
-// Este archivo se encarga de toda la comunicacion con api-football.
-// Usa el "fetch" que ya viene incluido en Node 18+, no hace falta instalar nada extra.
+const BASE_URL = 'https://www.thesportsdb.com/api/v1/json/3';
 
-const BASE_URL = 'https://v3.football.api-sports.io';
+let ligaIdCache = null;
 
-function headers() {
+async function apiGet(path) {
+  const response = await fetch(`${BASE_URL}${path}`);
+  if (!response.ok) {
+    throw new Error(`Error de la API (${response.status})`);
+  }
+  return response.json();
+}
+
+async function getLigaId() {
+  if (ligaIdCache) return ligaIdCache;
+
+  const data = await apiGet(`/search_all_leagues.php?c=Argentina&s=Soccer`);
+  const ligas = data.countrys || [];
+  const encontrada = ligas.find((l) => {
+    const nombre = (l.strLeague || '').toLowerCase();
+    return nombre.includes('primera') || nombre.includes('profesional');
+  });
+
+  if (!encontrada) {
+    throw new Error('No se pudo encontrar el ID de la Liga Profesional Argentina en TheSportsDB.');
+  }
+
+  ligaIdCache = encontrada.idLeague;
+  return ligaIdCache;
+}
+
+async function getProximosPartidos() {
+  const id = await getLigaId();
+  const data = await apiGet(`/eventsnextleague.php?id=${id}`);
+  return data.events || [];
+}
+
+async function getUltimosResultados() {
+  const id = await getLigaId();
+  const data = await apiGet(`/eventspastleague.php?id=${id}`);
+  return data.events || [];
+}
+
+async function getTabla(season) {
+  const id = await getLigaId();
+  const data = await apiGet(`/lookuptable.php?l=${id}&s=${season}`);
+  return data.table || [];
+}
+
+async function buscarEquipo(nombre) {
+  const data = await apiGet(`/searchteams.php?t=${encodeURIComponent(nombre)}`);
+  const equipos = data.teams || [];
+  return equipos.find((e) => e.strSport === 'Soccer') || null;
+}
+
+async function getContextoEquipo(teamId) {
+  const [ultimos, proximos] = await Promise.all([
+    apiGet(`/eventslast.php?id=${teamId}`),
+    apiGet(`/eventsnext.php?id=${teamId}`),
+  ]);
   return {
-    'x-apisports-key': process.env.API_FOOTBALL_KEY,
+    ultimo: (ultimos.results || [])[0] || null,
+    proximo: (proximos.events || [])[0] || null,
   };
 }
 
-async function apiGet(path, params = {}) {
-  const url = new URL(BASE_URL + path);
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      url.searchParams.set(key, value);
-    }
-  });
-
-  const response = await fetch(url, { headers: headers() });
-
-  if (!response.ok) {
-    throw new Error(`Error de la API (${response.status}): ${await response.text()}`);
-  }
-
-  const data = await response.json();
-
-  if (data.errors && Object.keys(data.errors).length > 0) {
-    throw new Error(`La API devolvio un error: ${JSON.stringify(data.errors)}`);
-  }
-
-  return data.response;
-}
-
-// Trae los partidos entre dos fechas (formato YYYY-MM-DD) del torneo configurado.
-async function getFixturesBetween(from, to) {
-  return apiGet('/fixtures', {
-    league: process.env.LEAGUE_ID,
-    season: process.env.SEASON,
-    from,
-    to,
-  });
-}
-
-// Trae los ultimos "n" partidos ya finalizados del torneo.
-async function getLastResults(n = 10) {
-  return apiGet('/fixtures', {
-    league: process.env.LEAGUE_ID,
-    season: process.env.SEASON,
-    last: n,
-  });
-}
-
-// Trae la tabla de posiciones actual.
-async function getStandings() {
-  const response = await apiGet('/standings', {
-    league: process.env.LEAGUE_ID,
-    season: process.env.SEASON,
-  });
-  if (!response.length) return [];
-  return response[0].league.standings[0];
-}
-
-// Busca un equipo por nombre dentro del torneo configurado.
-async function findTeam(name) {
-  const teams = await apiGet('/teams', {
-    league: process.env.LEAGUE_ID,
-    season: process.env.SEASON,
-    search: name,
-  });
-  return teams[0] || null;
-}
-
-// Trae el ultimo partido jugado y el proximo partido de un equipo.
-async function getTeamContext(teamId) {
-  const [last, next] = await Promise.all([
-    apiGet('/fixtures', {
-      league: process.env.LEAGUE_ID,
-      season: process.env.SEASON,
-      team: teamId,
-      last: 1,
-    }),
-    apiGet('/fixtures', {
-      league: process.env.LEAGUE_ID,
-      season: process.env.SEASON,
-      team: teamId,
-      next: 1,
-    }),
-  ]);
-  return { last: last[0] || null, next: next[0] || null };
-}
-
 module.exports = {
-  getFixturesBetween,
-  getLastResults,
-  getStandings,
-  findTeam,
-  getTeamContext,
+  getProximosPartidos,
+  getUltimosResultados,
+  getTabla,
+  buscarEquipo,
+  getContextoEquipo,
 };
