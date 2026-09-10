@@ -1,8 +1,10 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const api = require('../api');
 
-function formatFecha(dateStr) {
-  return new Date(dateStr).toLocaleString('es-AR', {
+function formatFecha(fecha, hora) {
+  if (!fecha) return 'Fecha a confirmar';
+  const texto = hora ? `${fecha} ${hora}` : fecha;
+  return new Date(texto).toLocaleString('es-AR', {
     weekday: 'short',
     day: '2-digit',
     month: '2-digit',
@@ -16,7 +18,7 @@ module.exports = {
     .setName('equipo')
     .setDescription('Muestra el ultimo y proximo partido de un equipo')
     .addStringOption((option) =>
-      option.setName('nombre').setDescription('Nombre del equipo, ej: Boca, River, Racing').setRequired(true)
+      option.setName('nombre').setDescription('Nombre del equipo, ej: Boca Juniors, River Plate').setRequired(true)
     ),
 
   async execute(interaction) {
@@ -24,36 +26,35 @@ module.exports = {
     const nombre = interaction.options.getString('nombre');
 
     try {
-      const equipo = await api.findTeam(nombre);
+      const equipo = await api.buscarEquipo(nombre);
 
       if (!equipo) {
-        await interaction.editReply(`No encontre ningun equipo llamado "${nombre}" en el torneo.`);
+        await interaction.editReply(`No encontre ningun equipo llamado "${nombre}".`);
         return;
       }
 
-      const { last, next } = await api.getTeamContext(equipo.team.id);
-
+      const { ultimo, proximo } = await api.getContextoEquipo(equipo.idTeam);
       const partes = [];
 
-      if (last) {
+      if (ultimo) {
         partes.push(
-          `**Ultimo partido:** ${last.teams.home.name} ${last.goals.home ?? '-'} - ${last.goals.away ?? '-'} ${last.teams.away.name} (${formatFecha(last.fixture.date)})`
+          `**Ultimo partido:** ${ultimo.strHomeTeam} ${ultimo.intHomeScore ?? '-'} - ${ultimo.intAwayScore ?? '-'} ${ultimo.strAwayTeam} (${formatFecha(ultimo.dateEvent)})`
         );
       } else {
         partes.push('**Ultimo partido:** no encontrado.');
       }
 
-      if (next) {
+      if (proximo) {
         partes.push(
-          `**Proximo partido:** ${next.teams.home.name} vs ${next.teams.away.name} — ${formatFecha(next.fixture.date)}`
+          `**Proximo partido:** ${proximo.strHomeTeam} vs ${proximo.strAwayTeam} — ${formatFecha(proximo.dateEvent, proximo.strTime)}`
         );
       } else {
         partes.push('**Proximo partido:** no hay fecha confirmada todavia.');
       }
 
       const embed = new EmbedBuilder()
-        .setTitle(equipo.team.name)
-        .setThumbnail(equipo.team.logo)
+        .setTitle(equipo.strTeam)
+        .setThumbnail(equipo.strTeamBadge || null)
         .setDescription(partes.join('\n\n'))
         .setColor(0x9b59b6);
 
