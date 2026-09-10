@@ -1,47 +1,47 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const api = require('../api');
 
+function formatFecha(fecha, hora) {
+  if (!fecha) return 'Fecha a confirmar';
+  const texto = hora ? `${fecha} ${hora}` : fecha;
+  return new Date(texto).toLocaleString('es-AR', {
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 module.exports = {
-  data: new SlashCommandBuilder()
-    .setName('resultados')
-    .setDescription('Muestra los ultimos resultados del torneo')
-    .addIntegerOption((option) =>
-      option
-        .setName('cantidad')
-        .setDescription('Cuantos partidos mostrar (por defecto 10)')
-        .setMinValue(1)
-        .setMaxValue(30)
-    ),
+  data: new SlashCommandBuilder().setName('proximos').setDescription('Muestra los proximos partidos del torneo'),
 
   async execute(interaction) {
     await interaction.deferReply();
-    const cantidad = interaction.options.getInteger('cantidad') || 10;
 
     try {
-      const fixtures = await api.getLastResults(cantidad);
+      const partidos = await api.getProximosPartidos();
 
-      if (!fixtures.length) {
-        await interaction.editReply('No encontre resultados recientes.');
+      if (!partidos.length) {
+        await interaction.editReply('No encontre proximos partidos programados por ahora.');
         return;
       }
 
-      const lineas = fixtures.map((f) => {
-        const local = f.teams.home.name;
-        const visitante = f.teams.away.name;
-        const golesLocal = f.goals.home ?? '-';
-        const golesVisitante = f.goals.away ?? '-';
-        return `**${local}** ${golesLocal} - ${golesVisitante} **${visitante}**`;
+      const lineas = partidos.map((p) => {
+        return `**${p.strHomeTeam}** vs **${p.strAwayTeam}** — ${formatFecha(p.dateEvent, p.strTime)}`;
       });
 
-      const embed = new EmbedBuilder()
-        .setTitle('Ultimos resultados')
-        .setDescription(lineas.join('\n'))
-        .setColor(0x3498db);
+      let descripcion = lineas.join('\n');
+      if (descripcion.length > 4000) {
+        descripcion = descripcion.slice(0, 4000) + '\n... (hay mas partidos de los que entran aca)';
+      }
+
+      const embed = new EmbedBuilder().setTitle('Proximos partidos').setDescription(descripcion).setColor(0x2ecc71);
 
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
       console.error(error);
-      await interaction.editReply('Hubo un error consultando los resultados. Intenta de nuevo en un rato.');
+      await interaction.editReply('Hubo un error consultando los partidos. Intenta de nuevo en un rato.');
     }
   },
 };
