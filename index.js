@@ -1,9 +1,21 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
 const cron = require('node-cron');
 const { Client, GatewayIntentBits, Collection, EmbedBuilder } = require('discord.js');
 const api = require('./api');
+
+// Servidor web minimo. Render necesita que el proyecto responda en un puerto para
+// considerarlo "activo", y este mismo endpoint es al que le va a hacer ping UptimeRobot
+// cada 5 minutos para que el servicio no se duerma. No tiene ninguna otra funcion.
+const PORT = process.env.PORT || 3000;
+http
+  .createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('El bot esta corriendo.');
+  })
+  .listen(PORT, () => console.log(`Servidor de estado escuchando en el puerto ${PORT}`));
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 client.commands = new Collection();
@@ -20,7 +32,6 @@ for (const file of commandFiles) {
 client.once('ready', () => {
   console.log(`Bot conectado como ${client.user.tag}`);
 
-  // Si configuraste un CHANNEL_ID, mandamos un resumen de los partidos del dia todos los dias a las 10:00 (hora Argentina).
   if (process.env.CHANNEL_ID) {
     cron.schedule(
       '0 10 * * *',
