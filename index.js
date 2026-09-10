@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const cron = require('node-cron');
-const { Client, GatewayIntentBits, Collection, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, EmbedBuilder, REST, Routes } = require('discord.js');
 const api = require('./api');
 
 // Servidor web minimo. Render necesita que el proyecto responda en un puerto para
@@ -29,9 +29,23 @@ for (const file of commandFiles) {
   client.commands.set(command.data.name, command);
 }
 
-client.once('ready', () => {
+client.once('ready', async () => {
   console.log(`Bot conectado como ${client.user.tag}`);
 
+  // Le avisa a Discord que comandos existen (/proximos, /tabla, etc). Se repite en
+  // cada arranque, pero eso no genera problemas ni duplicados.
+  try {
+    const commandsData = commandFiles.map((file) => require(path.join(commandsPath, file)).data.toJSON());
+    const rest = new REST().setToken(process.env.DISCORD_TOKEN);
+    await rest.put(Routes.applicationGuildCommands(client.user.id, process.env.GUILD_ID), {
+      body: commandsData,
+    });
+    console.log('Comandos registrados correctamente.');
+  } catch (error) {
+    console.error('Error registrando comandos:', error);
+  }
+
+  // Si configuraste un CHANNEL_ID, mandamos un resumen de los partidos del dia todos los dias a las 10:00 (hora Argentina).
   if (process.env.CHANNEL_ID) {
     cron.schedule(
       '0 10 * * *',
